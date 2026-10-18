@@ -2645,12 +2645,20 @@ pub fn get_hwid() -> Bytes {
 
 #[inline]
 pub fn get_builtin_option(key: &str) -> String {
-    config::BUILTIN_SETTINGS
+    let v = config::BUILTIN_SETTINGS
         .read()
         .unwrap()
         .get(key)
         .cloned()
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if v.is_empty() {
+        // MSP-Soporte (white-label): ocultar la configuracion de servidor al cliente final
+        // (protege la IP/dominio y la clave publica), sin quitar la caja para conectarse a un ID.
+        if key == keys::OPTION_HIDE_NETWORK_SETTINGS || key == keys::OPTION_HIDE_SERVER_SETTINGS {
+            return "Y".to_owned();
+        }
+    }
+    v
 }
 
 #[inline]
