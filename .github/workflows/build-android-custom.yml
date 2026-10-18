@@ -27,7 +27,6 @@ jobs:
       matrix:
         job:
           - { arch: arm64-v8a, target: aarch64-linux-android, platform: android-arm64 }
-          - { arch: armeabi-v7a, target: armv7-linux-androideabi, platform: android-arm }
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
