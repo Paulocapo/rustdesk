@@ -1,0 +1,76 @@
+name: Check RustDesk upstream updates
+
+# Avisa si hay una version nueva oficial de RustDesk comparando con nuestra version.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * 1" # todos los lunes 12:00 UTC
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Comparar version con RustDesk oficial
+        id: cmp
+        shell: bash
+        run: |
+          OUR=$(grep -m1 -E '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          LATEST=$(curl -s https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+          LATEST=${LATEST#v}
+          echo "our=$OUR" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Nuestra version: $OUR | Ultima oficial: $LATEST"
+
+      - name: Avisar por Issue si hay version nueva
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        env:
+          OUR: ${{ steps.cmp.outputs.our }}
+          LATEST: ${{ steps.cmp.outputs.latest }}
+        with:
+          script: |
+            const our = process.env.OUR, latest = process.env.LATEST;
+            const n = s => (s || '').split('.').map(x => parseInt(x) || 0);
+            const [a, b, c] = n(our);
+            const [x, y, z] = n(latest);
+            const newer = (x > a) || (x === a && y > b) || (x === a && y === b && z > c);
+            if (!newer) {
+              console.log('Sin actualizaciones. Estamos al dia (version ' + our + ').');
+              return;
+            }
+            const title = 'Actualizacion de RustDesk disponible: ' + latest;
+            const body = [
+              '## Nueva version oficial de RustDesk: **' + latest + '**',
+              '',
+              'Nuestra version actual: **' + our + '**',
+              '',
+              '### Pasos para actualizar',
+              '1. Ejecutar el workflow **Update from upstream RustDesk** y revisar el Pull Request.',
+              '2. Verificar que sigan el servidor, la clave y la marca.',
+              '3. Compilar con **Build ... (Windows x64)** y distribuir el .exe.',
+              '4. Evaluar actualizar el servidor (hbbs/hbbr) en el VPS.',
+              '',
+              'Proceso completo en `ACTUALIZACION.md` (repo de gestion soporteremotomsp).',
+            ].join('\n');
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100,
+            });
+            const existing = issues.find(i => i.title.startsWith('Actualizacion de RustDesk disponible'));
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number, title, body,
+              });
+              console.log('Issue actualizado: #' + existing.number);
+            } else {
+              const r = await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo, title, body,
+              });
+              console.log('Issue creado: #' + r.data.number);
+            }

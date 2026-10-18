@@ -1,0 +1,50 @@
+name: Update from upstream RustDesk
+
+# Mergea una version nueva de RustDesk upstream en una rama y abre un Pull Request.
+# NO toca 'master' directamente: vos revisas y mergeas el PR. Despues recompilas.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tag o rama de RustDesk upstream (ej. 1.5.2). Vacio = ultimo master.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge de upstream y abrir PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ inputs.ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/rustdesk/rustdesk.git
+          git fetch upstream --tags
+          TARGET="upstream/master"
+          if [ -n "$REF" ]; then TARGET="upstream/$REF"; fi
+          BRANCH="update/upstream-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH"
+          if ! git merge "$TARGET" --no-edit; then
+            echo "::error::Hay CONFLICTOS al mergear $TARGET. Se cancela el merge. Resolver manualmente (revisar libs/hbb_common, src/common.rs, libs/hbb_common/src/config.rs)."
+            git merge --abort
+            exit 1
+          fi
+          # Reafirmar personalizaciones clave por si el merge las piso (no deberia, pero por seguridad)
+          git push origin "$BRANCH"
+          gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "Actualizacion desde RustDesk ($TARGET)" \
+            --body "Merge automatico de $TARGET. Revisar que sigan presentes el servidor/clave, la marca/logos y el bloqueo de auto-update. Proceso completo en ACTUALIZACION.md (repo soporteremotomsp)."
