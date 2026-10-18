@@ -11,8 +11,7 @@ name: Update webpki-roots
 # branch, to run CI on it.
 
 on:
-  schedule:
-    - cron: "0 3 * * 1"
+  # Deshabilitado el disparo semanal automatico en este fork. Solo manual.
   workflow_dispatch:
 
 # A manual dispatch overlapping the weekly run would race it force-pushing

@@ -1,21 +1,8 @@
 name: Full Flutter CI
 
 on:
+  # Deshabilitado el disparo automatico (push/PR) en este fork. Solo manual.
   workflow_dispatch:
-  pull_request:
-    paths-ignore:
-    - "docs/**"
-    - "README.md"
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - ".github/**"
-      - "docs/**"
-      - "README.md"
-      - "res/**"
-      - "appimage/**"
-      - "flatpak/**"
 
 jobs:
   run-ci:
