@@ -4,7 +4,7 @@ name: Check RustDesk upstream updates
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 12 * * 1" # todos los lunes 12:00 UTC
+    - cron: "0 12 1 * *" # el dia 1 de cada mes, 12:00 UTC (mensual)
 
 permissions:
   contents: read
