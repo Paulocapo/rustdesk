@@ -1,6 +1,9 @@
 name: Check RustDesk upstream updates
 
 # Avisa si hay una version nueva oficial de RustDesk comparando con nuestra version.
+# - Si NO hay actualizacion: no hace nada (sin correo).
+# - Si HAY actualizacion: crea/actualiza un Issue mencionando al dueño (llega correo).
+# - Si FALLA: GitHub envia el correo de fallo por defecto.
 on:
   workflow_dispatch:
   schedule:
@@ -41,10 +44,18 @@ jobs:
             const [a, b, c] = n(our);
             const [x, y, z] = n(latest);
             const newer = (x > a) || (x === a && y > b) || (x === a && y === b && z > c);
-            if (!newer) { core.info('Estamos al dia (version ' + our + ').'); return; }
+            if (!newer) {
+              core.info('Estamos al dia (version ' + our + '). No se envia nada.');
+              return;
+            }
 
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const mention = '@' + owner; // garantiza la notificacion/correo al dueño
             const title = 'Actualizacion de RustDesk disponible: ' + latest;
             const body = [
+              mention + ' hay una nueva version oficial de RustDesk.',
+              '',
               '## Nueva version oficial de RustDesk: **' + latest + '**',
               '',
               'Nuestra version actual: **' + our + '**',
@@ -59,18 +70,21 @@ jobs:
             ].join('\n');
 
             const { data: issues } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100,
+              owner, repo, state: 'open', per_page: 100,
             });
             const existing = issues.find(i => i.title.startsWith('Actualizacion de RustDesk disponible'));
             if (existing) {
               await github.rest.issues.update({
-                owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: existing.number, title, body,
+                owner, repo, issue_number: existing.number, title, body,
+              });
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: existing.number,
+                body: mention + ' nueva version disponible: **' + latest + '**',
               });
               core.info('Issue actualizado: #' + existing.number);
             } else {
               const r = await github.rest.issues.create({
-                owner: context.repo.owner, repo: context.repo.repo, title, body,
+                owner, repo, title, body, assignees: [owner],
               });
               core.info('Issue creado: #' + r.data.number);
             }
