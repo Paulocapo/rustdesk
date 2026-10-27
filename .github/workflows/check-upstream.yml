@@ -64,7 +64,12 @@ jobs:
               '1. Ejecutar el workflow **Update from upstream RustDesk** y revisar el Pull Request.',
               '2. Verificar que sigan el servidor, la clave y la marca.',
               '3. Compilar con **Build ... (Windows x64)** y distribuir el .exe.',
-              '4. Evaluar actualizar el servidor (hbbs/hbbr) en el VPS.',
+              '4. Si se compila el APK (MSP), compilar con **Build MSP-Soporte (Android)**. El `versionCode`',
+              '   del APK ya se sube solo en el paso 1; no hace falta tocarlo a mano.',
+              '5. Evaluar actualizar el servidor (hbbs/hbbr) en el VPS.',
+              '',
+              '> Ayuda memoria: el APK sube de version **unicamente** al correr *Update from upstream*.',
+              '> Si solo recompilas sin actualizar, el APK mantiene la misma version (instala encima igual).',
               '',
               'Proceso completo en `ACTUALIZACION.md` (repo de gestion soporteremotomsp).'
             ].join('\n');

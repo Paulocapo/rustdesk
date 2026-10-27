@@ -157,6 +157,20 @@ jobs:
             ;;
           esac
 
+      - name: Version del APK (informativo)
+        shell: bash
+        run: |
+          LINE=$(grep -m1 '^version:' flutter/pubspec.yaml)
+          CODE=$(echo "$LINE" | sed -E 's/.*\+([0-9]+).*/\1/')
+          echo "### APK a compilar" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- pubspec: \`$LINE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- versionCode: **$CODE**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- artefacto: MSP-Soporte-${{ env.VERSION }}-arm64-v8a.apk" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CODE" = "1" ]; then
+            echo "::warning::versionCode = 1 (local.properties sin build number). Revisar flutter/pubspec.yaml."
+          fi
+
       - name: Build APK
         shell: bash
         env:

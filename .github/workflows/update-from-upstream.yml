@@ -41,6 +41,25 @@ jobs:
             git merge --abort
             exit 1
           fi
+
+          # --- Version del APK (Android): sube SOLO en este flujo, o sea solo cuando hay
+          # actualizacion de RustDesk. Si no se actualiza, este workflow no corre y el
+          # versionCode no cambia.
+          if [ -f flutter/pubspec.yaml ]; then
+            NEW_VER=$(grep -m1 '^version' Cargo.toml | sed -E 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
+            OLD_BUILD=$(grep -m1 '^version:' flutter/pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
+            if ! echo "$OLD_BUILD" | grep -qE '^[0-9]+$'; then OLD_BUILD=0; fi
+            NEW_BUILD=$((OLD_BUILD + 1))
+            if [ -n "$NEW_VER" ]; then
+              sed -i -E "s/^version:.*/version: ${NEW_VER}+${NEW_BUILD}/" flutter/pubspec.yaml
+              git add flutter/pubspec.yaml
+              git commit -m "APK: subir version a ${NEW_VER}+${NEW_BUILD} (versionCode ${NEW_BUILD})"
+              echo "APK version: ${NEW_VER}+${NEW_BUILD} (versionCode ${NEW_BUILD})" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::warning::No se pudo leer la version de Cargo.toml; revisar flutter/pubspec.yaml a mano."
+            fi
+          fi
+
           # Reafirmar personalizaciones clave por si el merge las piso (no deberia, pero por seguridad)
           git push origin "$BRANCH"
           gh pr create \
