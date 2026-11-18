@@ -1185,7 +1185,11 @@ const CUSTOM_UPDATE_CA_PEM: &[u8] = include_bytes!("../res/update-ca.pem");
 /// No descarga ni instala nada: el boton del aviso abre la URL del instalador y el tecnico lo
 /// corre a mano (encima del anterior, sin desinstalar).
 async fn do_check_custom_update() -> ResultType<()> {
-    let channel = config::CUSTOM_UPDATE_CHANNEL;
+    let channel = if cfg!(target_os = "android") {
+        config::CUSTOM_UPDATE_CHANNEL_ANDROID
+    } else {
+        config::CUSTOM_UPDATE_CHANNEL
+    };
     // Inyectado al compilar (secret). Si falta, el chequeo queda deshabilitado.
     let token = option_env!("CUSTOM_UPDATE_TOKEN").unwrap_or("");
     if channel.is_empty() || token.is_empty() {

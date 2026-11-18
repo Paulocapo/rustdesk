@@ -122,6 +122,8 @@ pub const RS_PUB_KEY: &str = "nobrqkzPZgadNZJ3AQYP4sRJJ2DUJ2iVnl8SnxZbB18=";
 pub const CUSTOM_UPDATE_BASE: &str = "https://147.15.29.197/u";
 /// Subcarpeta del canal para ESTE cliente (`msp` / `indabi`).
 pub const CUSTOM_UPDATE_CHANNEL: &str = "msp";
+/// Canal aparte para Android: el aviso debe apuntar al **.apk**, no al instalador de Windows.
+pub const CUSTOM_UPDATE_CHANNEL_ANDROID: &str = "msp-android";
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;

@@ -4,6 +4,11 @@ name: Build MSP-Soporte (Android APK)
 # Firmado con la clave de debug -> instalable activando "origenes desconocidos".
 on:
   workflow_dispatch:
+    inputs:
+      publish_update:
+        description: 'Publicar en el VPS (canal Android) para que el aviso del telefono baje el APK.'
+        type: boolean
+        default: false
 
 env:
   RUST_VERSION: "1.75"
@@ -219,3 +224,27 @@ jobs:
           name: MSP-Soporte-${{ env.VERSION }}-${{ matrix.job.arch }}-apk
           path: ./output/MSP-Soporte-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
           if-no-files-found: error
+
+      # Canal Android: el aviso del telefono debe apuntar al .apk (no al instalador de Windows).
+      # Secrets necesarios: VPS_SSH_KEY y CUSTOM_UPDATE_TOKEN.
+      - name: Publicar APK en el VPS (opcional)
+        if: ${{ inputs.publish_update }}
+        shell: bash
+        env:
+          VPS_KEY: ${{ secrets.VPS_SSH_KEY }}
+          TOKEN: ${{ secrets.CUSTOM_UPDATE_TOKEN }}
+          TAG: ${{ env.VERSION }}
+          ARCH: ${{ matrix.job.arch }}
+          CHANNEL: msp-android
+        run: |
+          set -euo pipefail
+          FILE="MSP-Soporte-${TAG}-${ARCH}.apk"
+          SRC="./output/${FILE}"
+          [ -f "$SRC" ] || { echo "::error::No existe $SRC"; exit 1; }
+          SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
+          printf '{"version":"%s","url":"https://147.15.29.197/u/%s/%s/%s","sha256":"%s"}\n' \
+            "$TAG" "$TOKEN" "$CHANNEL" "$FILE" "$SHA" > latest.json
+          mkdir -p ~/.ssh && printf '%s\n' "$VPS_KEY" > ~/.ssh/vps_key && chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H 147.15.29.197 >> ~/.ssh/known_hosts 2>/dev/null
+          scp -i ~/.ssh/vps_key "$SRC" latest.json "ubuntu@147.15.29.197:/home/ubuntu/updates/${CHANNEL}/"
+          echo "APK publicado en el VPS: ${TAG} (${ARCH})" >> "$GITHUB_STEP_SUMMARY"
