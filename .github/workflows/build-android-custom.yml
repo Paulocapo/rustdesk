@@ -247,4 +247,7 @@ jobs:
           mkdir -p ~/.ssh && printf '%s\n' "$VPS_KEY" > ~/.ssh/vps_key && chmod 600 ~/.ssh/vps_key
           ssh-keyscan -H 147.15.29.197 >> ~/.ssh/known_hosts 2>/dev/null
           scp -i ~/.ssh/vps_key "$SRC" latest.json "ubuntu@147.15.29.197:/home/ubuntu/updates/${CHANNEL}/"
+          # Retencion: conservar solo las 5 versiones mas nuevas del canal (APK).
+          ssh -i ~/.ssh/vps_key ubuntu@147.15.29.197 \
+            "ls -1t /home/ubuntu/updates/${CHANNEL}/*.apk 2>/dev/null | tail -n +6 | xargs -r rm -f"
           echo "APK publicado en el VPS: ${TAG} (${ARCH})" >> "$GITHUB_STEP_SUMMARY"
