@@ -748,6 +748,11 @@ pub fn current_is_wayland() -> bool {
 
 #[inline]
 pub fn get_new_version() -> String {
+    // Canal propio (white-label): la version viene del `latest.json`, no de la URL.
+    let custom = crate::common::NEW_VERSION.lock().unwrap().clone();
+    if !custom.is_empty() {
+        return custom;
+    }
     SOFTWARE_UPDATE_URL
         .lock()
         .unwrap()

@@ -117,12 +117,12 @@ const CHARS: &[char] = &[
 pub const RENDEZVOUS_SERVERS: &[&str] = &["147.15.29.197"];
 pub const RS_PUB_KEY: &str = "nobrqkzPZgadNZJ3AQYP4sRJJ2DUJ2iVnl8SnxZbB18=";
 
-/// Cliente white-label: repo de GitHub donde se publican las releases de ESTE cliente.
-/// El cliente consulta `releases/latest` y, si hay una version mas nueva, muestra el aviso con
-/// un boton para descargarla. Vacio = no se chequea nada.
-/// IMPORTANTE: los tags del release deben ser `X.Y.Z` (ej. `1.5.3`), sin sufijos como `+69`.
-/// Cada repo (MSP / INDABI) tiene el suyo.
-pub const CUSTOM_UPDATE_REPO: &str = "Paulocapo/rustdesk";
+/// Cliente white-label: canal de actualizaciones propio (HTTPS en el servidor de la empresa).
+/// El token va en la RUTA y **no** esta en el repo: se inyecta al compilar desde el secret
+/// `CUSTOM_UPDATE_TOKEN` (ver workflow). Si falta, el chequeo no hace nada.
+pub const CUSTOM_UPDATE_BASE: &str = "https://147.15.29.197/u";
+/// Subcarpeta del canal para ESTE cliente (`msp` / `indabi`).
+pub const CUSTOM_UPDATE_CHANNEL: &str = "msp";
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;

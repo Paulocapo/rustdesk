@@ -93,6 +93,8 @@ pub mod input {
 
 lazy_static::lazy_static! {
     pub static ref SOFTWARE_UPDATE_URL: Arc<Mutex<String>> = Default::default();
+    /// Version nueva detectada en el canal propio (para mostrarla en el aviso).
+    pub static ref NEW_VERSION: Arc<Mutex<String>> = Default::default();
     pub static ref DEVICE_ID: Arc<Mutex<String>> = Default::default();
     pub static ref DEVICE_NAME: Arc<Mutex<String>> = Default::default();
     static ref PUBLIC_IPV6_ADDR: Arc<Mutex<(Option<SocketAddr>, Option<Instant>)>> = Default::default();
@@ -1098,6 +1100,7 @@ pub(crate) fn display_version_from_release_id(release_id: &str) -> ResultType<St
 fn clear_software_update_url() {
     let mut update_url = SOFTWARE_UPDATE_URL.lock().unwrap();
     *update_url = String::new();
+    *NEW_VERSION.lock().unwrap() = String::new();
 }
 
 fn process_software_update_check_response(bytes: Bytes) -> ResultType<()> {
@@ -1123,24 +1126,35 @@ fn process_software_update_check_response(bytes: Bytes) -> ResultType<()> {
     Ok(())
 }
 
-/// Cliente white-label: consulta el ultimo release de NUESTRO repo de GitHub y, si la version es
-/// mas nueva que la compilada, deja el aviso en la UI (`SOFTWARE_UPDATE_URL`).
+/// Certificado TLS del servidor propio de actualizaciones (self-signed). Se agrega como **unica**
+/// raiz de confianza para este request (pinning): si el certificado no coincide (MITM, o cambio en
+/// el servidor sin recompilar), la conexion falla.
+const CUSTOM_UPDATE_CA_PEM: &[u8] = include_bytes!("../res/update-ca.pem");
+
+/// Cliente white-label: consulta NUESTRO canal de actualizaciones (`latest.json` en el servidor
+/// propio, HTTPS con pinning y token en la ruta) y, si hay una version mas nueva, deja el aviso
+/// en la UI.
 ///
-/// A diferencia del updater oficial, **no descarga ni instala nada**: el boton del aviso abre la
-/// pagina del release en el navegador y el instalador se corre a mano (encima del anterior, sin
-/// desinstalar). Asi no hace falta firmar metadatos ni manejar claves privadas.
+/// No descarga ni instala nada: el boton del aviso abre la URL del instalador y el tecnico lo
+/// corre a mano (encima del anterior, sin desinstalar).
 async fn do_check_custom_update() -> ResultType<()> {
-    let repo = config::CUSTOM_UPDATE_REPO;
-    if repo.is_empty() {
+    let channel = config::CUSTOM_UPDATE_CHANNEL;
+    // Inyectado al compilar (secret). Si falta, el chequeo queda deshabilitado.
+    let token = option_env!("CUSTOM_UPDATE_TOKEN").unwrap_or("");
+    if channel.is_empty() || token.is_empty() {
         return Ok(());
     }
-    let url = format!("https://api.github.com/repos/{repo}/releases/latest");
-    let client = create_http_client_async(TlsType::Rustls, false);
+    let url = format!(
+        "{}/{}/{}/latest.json",
+        config::CUSTOM_UPDATE_BASE, token, channel
+    );
+    let cert = reqwest::Certificate::from_pem(CUSTOM_UPDATE_CA_PEM)?;
+    let client = reqwest::Client::builder()
+        .add_root_certificate(cert)
+        .build()?;
     let resp = client
         .get(&url)
-        // GitHub exige un User-Agent en su API.
         .header("User-Agent", get_app_name())
-        .header("Accept", "application/vnd.github+json")
         .send()
         .await?;
     if !resp.status().is_success() {
@@ -1150,10 +1164,9 @@ async fn do_check_custom_update() -> ResultType<()> {
         );
     }
     let body: Value = serde_json::from_slice(&resp.bytes().await?)?;
-    let tag = body.get("tag_name").and_then(|v| v.as_str()).unwrap_or("");
-    let html_url = body.get("html_url").and_then(|v| v.as_str()).unwrap_or("");
-    let latest = tag.trim_start_matches('v');
-    if latest.is_empty() || html_url.is_empty() {
+    let latest = body.get("version").and_then(|v| v.as_str()).unwrap_or("");
+    let download_url = body.get("url").and_then(|v| v.as_str()).unwrap_or("");
+    if latest.is_empty() || download_url.is_empty() {
         clear_software_update_url();
         return Ok(());
     }
@@ -1162,12 +1175,13 @@ async fn do_check_custom_update() -> ResultType<()> {
         {
             let mut m = HashMap::new();
             m.insert("name", "check_software_update_finish");
-            m.insert("url", html_url);
+            m.insert("url", download_url);
             if let Ok(data) = serde_json::to_string(&m) {
                 let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, data);
             }
         }
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = html_url.to_owned();
+        *NEW_VERSION.lock().unwrap() = latest.to_owned();
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = download_url.to_owned();
     } else {
         clear_software_update_url();
     }

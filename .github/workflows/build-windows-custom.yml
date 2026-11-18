@@ -4,8 +4,8 @@ name: Build MSP-Soporte (Windows x64)
 on:
   workflow_dispatch:
     inputs:
-      publish_release:
-        description: 'Publicar como GitHub Release (tag = VERSION). Necesario para que los clientes vean el aviso de actualizacion.'
+      publish_update:
+        description: 'Publicar en el VPS (canal de actualizaciones propio) para que los clientes vean el aviso.'
         type: boolean
         default: false
 
@@ -141,6 +141,9 @@ jobs:
         shell: bash
 
       - name: Build rustdesk
+        env:
+          # Token del canal de actualizaciones propio (se embebe en el binario; no va al repo).
+          CUSTOM_UPDATE_TOKEN: ${{ secrets.CUSTOM_UPDATE_TOKEN }}
         run: |
           python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec --vram
           mv ./flutter/build/windows/x64/runner/Release ./MSP-Soporte
@@ -175,26 +178,26 @@ jobs:
           name: MSP-Soporte-${{ env.VERSION }}-x86_64-portable
           path: ./MSP-Soporte
 
-      # Canal de actualizacion propio: el cliente consulta `releases/latest` de este repo y avisa
-      # si el tag es mayor. El tag DEBE ser X.Y.Z (ej. 1.5.3), sin sufijos.
-      - name: Publicar GitHub Release (opcional)
-        if: ${{ inputs.publish_release }}
+      # Canal propio: sube el instalador + latest.json al VPS (nginx, HTTPS + token en la ruta).
+      # Secrets necesarios: VPS_SSH_KEY (clave privada) y CUSTOM_UPDATE_TOKEN.
+      - name: Publicar en el VPS (opcional)
+        if: ${{ inputs.publish_update }}
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VPS_KEY: ${{ secrets.VPS_SSH_KEY }}
+          TOKEN: ${{ secrets.CUSTOM_UPDATE_TOKEN }}
           TAG: ${{ env.VERSION }}
+          CHANNEL: msp
         run: |
-          FILE="./output/MSP-Soporte-${TAG}-x86_64-install.exe"
-          if [ ! -f "$FILE" ]; then echo "::error::No existe $FILE"; exit 1; fi
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "El release $TAG ya existe: se sube el instalador (clobber)."
-            gh release upload "$TAG" "$FILE" --clobber
-            gh release edit "$TAG" --latest
-          else
-            gh release create "$TAG" "$FILE" \
-              --title "MSP-Soporte ${TAG}" \
-              --notes "Cliente **MSP-Soporte ${TAG}** (Windows x64). Instalar encima del anterior: conserva el ID y la contrasena." \
-              --latest
-          fi
-          echo "Release publicado: ${TAG}" >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          FILE="MSP-Soporte-${TAG}-x86_64-install.exe"
+          SRC="./output/${FILE}"
+          [ -f "$SRC" ] || { echo "::error::No existe $SRC"; exit 1; }
+          SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
+          printf '{"version":"%s","url":"https://147.15.29.197/u/%s/%s/%s","sha256":"%s"}\n' \
+            "$TAG" "$TOKEN" "$CHANNEL" "$FILE" "$SHA" > latest.json
+          mkdir -p ~/.ssh && printf '%s\n' "$VPS_KEY" > ~/.ssh/vps_key && chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H 147.15.29.197 >> ~/.ssh/known_hosts 2>/dev/null
+          scp -i ~/.ssh/vps_key "$SRC" latest.json "ubuntu@147.15.29.197:/home/ubuntu/updates/${CHANNEL}/"
+          echo "Publicado en el VPS: ${TAG} (${CHANNEL})" >> "$GITHUB_STEP_SUMMARY"
           if-no-files-found: error
