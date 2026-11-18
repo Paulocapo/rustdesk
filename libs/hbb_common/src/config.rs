@@ -117,6 +117,13 @@ const CHARS: &[char] = &[
 pub const RENDEZVOUS_SERVERS: &[&str] = &["147.15.29.197"];
 pub const RS_PUB_KEY: &str = "nobrqkzPZgadNZJ3AQYP4sRJJ2DUJ2iVnl8SnxZbB18=";
 
+/// Cliente white-label: repo de GitHub donde se publican las releases de ESTE cliente.
+/// El cliente consulta `releases/latest` y, si hay una version mas nueva, muestra el aviso con
+/// un boton para descargarla. Vacio = no se chequea nada.
+/// IMPORTANTE: los tags del release deben ser `X.Y.Z` (ej. `1.5.3`), sin sufijos como `+69`.
+/// Cada repo (MSP / INDABI) tiene el suyo.
+pub const CUSTOM_UPDATE_REPO: &str = "Paulocapo/rustdesk";
+
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;
 pub const WS_RENDEZVOUS_PORT: i32 = 21118;

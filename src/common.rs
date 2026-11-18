@@ -1011,9 +1011,6 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
 }
 
 pub fn check_software_update() {
-    if is_custom_client() {
-        return;
-    }
     let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
     if config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt) {
         std::thread::spawn(move || allow_err!(do_check_software_update()));
@@ -1126,13 +1123,65 @@ fn process_software_update_check_response(bytes: Bytes) -> ResultType<()> {
     Ok(())
 }
 
+/// Cliente white-label: consulta el ultimo release de NUESTRO repo de GitHub y, si la version es
+/// mas nueva que la compilada, deja el aviso en la UI (`SOFTWARE_UPDATE_URL`).
+///
+/// A diferencia del updater oficial, **no descarga ni instala nada**: el boton del aviso abre la
+/// pagina del release en el navegador y el instalador se corre a mano (encima del anterior, sin
+/// desinstalar). Asi no hace falta firmar metadatos ni manejar claves privadas.
+async fn do_check_custom_update() -> ResultType<()> {
+    let repo = config::CUSTOM_UPDATE_REPO;
+    if repo.is_empty() {
+        return Ok(());
+    }
+    let url = format!("https://api.github.com/repos/{repo}/releases/latest");
+    let client = create_http_client_async(TlsType::Rustls, false);
+    let resp = client
+        .get(&url)
+        // GitHub exige un User-Agent en su API.
+        .header("User-Agent", get_app_name())
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        bail!(
+            "Custom update check failed with HTTP status: {}",
+            resp.status()
+        );
+    }
+    let body: Value = serde_json::from_slice(&resp.bytes().await?)?;
+    let tag = body.get("tag_name").and_then(|v| v.as_str()).unwrap_or("");
+    let html_url = body.get("html_url").and_then(|v| v.as_str()).unwrap_or("");
+    let latest = tag.trim_start_matches('v');
+    if latest.is_empty() || html_url.is_empty() {
+        clear_software_update_url();
+        return Ok(());
+    }
+    if get_version_number(latest) > get_version_number(crate::VERSION) {
+        #[cfg(feature = "flutter")]
+        {
+            let mut m = HashMap::new();
+            m.insert("name", "check_software_update_finish");
+            m.insert("url", html_url);
+            if let Ok(data) = serde_json::to_string(&m) {
+                let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, data);
+            }
+        }
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = html_url.to_owned();
+    } else {
+        clear_software_update_url();
+    }
+    Ok(())
+}
+
 // No need to check `danger_accept_invalid_cert` for now.
 // Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
-    // MSP-Soporte (white-label): nunca consultar ni aplicar la actualizacion oficial de RustDesk.
+    // MSP-Soporte (white-label): NUNCA consultar ni aplicar la actualizacion oficial de RustDesk.
+    // Se usa un canal propio: solo aviso + boton para descargar el instalador de nuestro release.
     if is_custom_client() {
-        return Ok(());
+        return do_check_custom_update().await;
     }
     let (request, url) =
         hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());

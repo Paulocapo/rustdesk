@@ -428,14 +428,19 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildHelpCards(String updateUrl) {
-    if (!bind.isCustomClient() &&
-        updateUrl.isNotEmpty &&
+    // Cliente white-label: el aviso viene de NUESTRO release (canal propio) y el boton solo abre
+    // la pagina de descarga; nunca se usa el updater oficial.
+    final isCustom = bind.isCustomClient();
+    if (updateUrl.isNotEmpty &&
         !isCardClosed &&
-        bind.mainUriPrefixSync().contains('rustdesk')) {
-      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();
+        (isCustom || bind.mainUriPrefixSync().contains('rustdesk'))) {
+      final isToUpdate =
+          !isCustom && (isWindows || isMacOS) && bind.mainIsInstalled();
       String btnText = isToUpdate ? 'Update' : 'Download';
       GestureTapCallback onPressed = () async {
-        final Uri url = Uri.parse('https://rustdesk.com/download');
+        final Uri url = isCustom
+            ? Uri.parse(updateUrl)
+            : Uri.parse('https://rustdesk.com/download');
         await launchUrl(url);
       };
       if (isToUpdate) {

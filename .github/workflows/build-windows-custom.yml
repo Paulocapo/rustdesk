@@ -3,6 +3,11 @@ name: Build MSP-Soporte (Windows x64)
 # Ejecucion manual desde la pestana "Actions" del repositorio.
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publicar como GitHub Release (tag = VERSION). Necesario para que los clientes vean el aviso de actualizacion.'
+        type: boolean
+        default: false
 
 env:
   SCITER_RUST_VERSION: "1.75"
@@ -37,7 +42,7 @@ jobs:
     needs: [generate-bridge, build-topmostwindow]
     runs-on: windows-2022
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
@@ -50,6 +55,18 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           submodules: recursive
+
+      # El tag del release sale del env VERSION. Si no coincide con Cargo.toml, los clientes
+      # nunca verian la actualizacion: se corta el build con un error claro.
+      - name: Verificar VERSION vs Cargo.toml
+        shell: bash
+        run: |
+          V=$(grep -m1 '^version' Cargo.toml | sed -E 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
+          echo "Cargo.toml: $V | env VERSION: ${{ env.VERSION }}"
+          if [ "$V" != "${{ env.VERSION }}" ]; then
+            echo "::error::El env VERSION (${{ env.VERSION }}) no coincide con Cargo.toml ($V). Actualizar 'VERSION:' en el workflow."
+            exit 1
+          fi
 
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -157,4 +174,27 @@ jobs:
         with:
           name: MSP-Soporte-${{ env.VERSION }}-x86_64-portable
           path: ./MSP-Soporte
+
+      # Canal de actualizacion propio: el cliente consulta `releases/latest` de este repo y avisa
+      # si el tag es mayor. El tag DEBE ser X.Y.Z (ej. 1.5.3), sin sufijos.
+      - name: Publicar GitHub Release (opcional)
+        if: ${{ inputs.publish_release }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.VERSION }}
+        run: |
+          FILE="./output/MSP-Soporte-${TAG}-x86_64-install.exe"
+          if [ ! -f "$FILE" ]; then echo "::error::No existe $FILE"; exit 1; fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "El release $TAG ya existe: se sube el instalador (clobber)."
+            gh release upload "$TAG" "$FILE" --clobber
+            gh release edit "$TAG" --latest
+          else
+            gh release create "$TAG" "$FILE" \
+              --title "MSP-Soporte ${TAG}" \
+              --notes "Cliente **MSP-Soporte ${TAG}** (Windows x64). Instalar encima del anterior: conserva el ID y la contrasena." \
+              --latest
+          fi
+          echo "Release publicado: ${TAG}" >> "$GITHUB_STEP_SUMMARY"
           if-no-files-found: error
