@@ -177,6 +177,7 @@ jobs:
         with:
           name: MSP-Soporte-${{ env.VERSION }}-x86_64-portable
           path: ./MSP-Soporte
+          if-no-files-found: error
 
       # Canal propio: sube el instalador + latest.json al VPS (nginx, HTTPS + token en la ruta).
       # Secrets necesarios: VPS_SSH_KEY (clave privada) y CUSTOM_UPDATE_TOKEN.
@@ -200,4 +201,3 @@ jobs:
           ssh-keyscan -H 147.15.29.197 >> ~/.ssh/known_hosts 2>/dev/null
           scp -i ~/.ssh/vps_key "$SRC" latest.json "ubuntu@147.15.29.197:/home/ubuntu/updates/${CHANNEL}/"
           echo "Publicado en el VPS: ${TAG} (${CHANNEL})" >> "$GITHUB_STEP_SUMMARY"
-          if-no-files-found: error
