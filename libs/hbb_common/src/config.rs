@@ -124,6 +124,8 @@ pub const CUSTOM_UPDATE_BASE: &str = "https://147.15.29.197/u";
 pub const CUSTOM_UPDATE_CHANNEL: &str = "msp";
 /// Canal aparte para Android: el aviso debe apuntar al **.apk**, no al instalador de Windows.
 pub const CUSTOM_UPDATE_CHANNEL_ANDROID: &str = "msp-android";
+/// Canal aparte para macOS: el aviso debe apuntar al **.dmg**.
+pub const CUSTOM_UPDATE_CHANNEL_MAC: &str = "msp-mac";
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;

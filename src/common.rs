@@ -1187,6 +1187,8 @@ const CUSTOM_UPDATE_CA_PEM: &[u8] = include_bytes!("../res/update-ca.pem");
 async fn do_check_custom_update() -> ResultType<()> {
     let channel = if cfg!(target_os = "android") {
         config::CUSTOM_UPDATE_CHANNEL_ANDROID
+    } else if cfg!(target_os = "macos") {
+        config::CUSTOM_UPDATE_CHANNEL_MAC
     } else {
         config::CUSTOM_UPDATE_CHANNEL
     };
